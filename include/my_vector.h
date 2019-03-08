@@ -6,7 +6,8 @@
 #define CUSTOMVECTOR_MY_VECTOR_H
 
 
-#include <mach/mach_types.h>
+// #include <mach/mach_types.h> // <-- це якийсь маківський нестандартний хідер..
+#include <cstdint>
 
 template <typename T>
 class my_vector
@@ -52,14 +53,11 @@ public:
     const T& back() const;
 
 
-    iterator begin();
+    iterator begin() const; // const тут сумнівний, безперечно! Але без нього GTest не компілював ряд тестів.
     const_iterator cbegin() const;
 
-    iterator end();
+    iterator end() const; // const тут сумнівний, безперечно! Але без нього GTest не компілював ряд тестів.
     const_iterator cend()const ;
-
-
-
 
     void push_back(const T& value);
     template <class... Args>
@@ -85,12 +83,8 @@ public:
     bool operator>(const my_vector& other) const;
     bool operator>=(const my_vector& other) const;
 
-
-
-
     T& operator[](size_t index);
     const T& operator[](size_t index) const;
-
 
 private:
     void reallocate(size_t new_capacity);
@@ -101,6 +95,9 @@ private:
     size_t mCapacity;
 };
 
+//! Таке рішення -- що порожній вектор містить нульовий вказівник замість блоку даних,
+//! часто -- субоптимальне. Воно змушує завжди перевіряти, а чи цей вказівник не нульовий.
+//! Виграш є при переміщенні, але програє решта коду.
 template <typename T>
 my_vector<T>::my_vector()
 :mSize(0)
@@ -173,6 +170,7 @@ my_vector<T>::my_vector(my_vector &&iOther) noexcept
 template <typename T>
 my_vector<T>& my_vector<T>::operator=(const my_vector<T> &iOther)
 {
+//! Немає захисту від присвоєння самому собі!
     clear();
 
     mSize = iOther.mSize;
@@ -205,7 +203,7 @@ my_vector<T>& my_vector<T>::operator=(my_vector<T> &&iOther) noexcept
 template <typename T>
 my_vector<T>::~my_vector()
 {
-    delete []mData;
+    delete[] mData;
 }
 
 //methods
@@ -251,6 +249,7 @@ void my_vector<T>::clear()
 {
     delete [] mData;
     mSize = mCapacity = 0;
+    mData = nullptr; // Раз вже Ви вважаєте, що порожній об'єкт не має блоку пам'яті.
 }
 
 template <typename T>
@@ -270,7 +269,7 @@ void my_vector<T>::resize(size_t new_size)
     {
         for (size_t i = new_size; i < mSize; ++i)
         {
-            mData[i] = T();
+            mData[i] = T(); // Хитро Ви викрутилися із знищенням об'єктів. :=)
         }
     }
     mSize = new_size;
@@ -336,7 +335,9 @@ void my_vector<T>::pop_back()
     --mSize;
 
     //TODO: think about two times calling destructor
-    mData[mSize].~T();
+    //! Це все просто треба було по іншому робити. Створювати теж "вручну".
+    // mData[mSize].~T();
+    mData[mSize] = T(); // Вами ж запропонований ерзац
 }
 
 template <typename T>
@@ -463,7 +464,8 @@ typename my_vector<T>::iterator my_vector<T>::erase(iterator first, iterator las
 
     for (size_t i = size() - erase_size; i < size(); ++i)
     {
-        mData[i].~T();
+        //mData[i].~T(); // Ви зразу породжуєте проблему -- решта коду може вважати, що об'єкт існує.
+        mData[i] = T();
     }
 
 
@@ -491,7 +493,7 @@ void my_vector<T>::swap(my_vector<T> &iOther)
 }
 
 template <typename T>
-typename my_vector<T>::iterator my_vector<T>::begin()
+typename my_vector<T>::iterator my_vector<T>::begin() const
 {
     return mData;
 }
@@ -503,7 +505,7 @@ typename my_vector<T>::const_iterator my_vector<T>::cbegin() const
 }
 
 template <typename T>
-typename my_vector<T>::iterator my_vector<T>::end()
+typename my_vector<T>::iterator my_vector<T>::end() const
 {
     return mData + mSize;
 }
